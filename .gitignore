@@ -1,1 +1,38 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Build output and tool caches
+.next/
+dist/
+build/
+coverage/
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# Local environment files and secrets (commit only .env.example)
+.env
+.env.*
+!.env.example
+
+# Logs and runtime data
+.logs/
+logs/
+*.log
+*.pid
+*.seed
+
+# Local databases and uploaded data
+*.sqlite
+*.sqlite3
+*.db
+uploads/
+storage/
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
