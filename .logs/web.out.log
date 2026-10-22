@@ -1,0 +1,13 @@
+
+> @nexos/web@1.0.0 dev C:\Users\USER\Downloads\My Projects\nexos\apps\web
+> next dev -p 3002
+
+  ▲ Next.js 14.2.0
+  - Local:        http://localhost:3002
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 8s
+ ○ Compiling / ...
+ ✓ Compiled / in 34.3s (842 modules)
+ GET / 200 in 38247ms

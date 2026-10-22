@@ -1,0 +1,56 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.accountingRouter = exports.communicationRouter = exports.documentsRouter = void 0;
+const express_1 = require("express");
+const DocumentController_1 = require("../controllers/DocumentController");
+const CommunicationController_1 = require("../controllers/CommunicationController");
+const AccountingController_1 = require("../controllers/AccountingController");
+const authenticate_1 = require("../middleware/authenticate");
+const middleware_1 = require("../middleware");
+const validation_1 = require("../lib/validation");
+// ── Documents ──────────────────────────────────────────────────────────────
+const documentsRouter = (0, express_1.Router)();
+exports.documentsRouter = documentsRouter;
+const docCtrl = new DocumentController_1.DocumentController();
+documentsRouter.use(authenticate_1.authenticate, middleware_1.rateLimiter);
+documentsRouter.get('/', docCtrl.list);
+documentsRouter.post('/', (0, validation_1.requireFields)('title'), docCtrl.create);
+documentsRouter.get('/stats', docCtrl.stats);
+documentsRouter.get('/:id', docCtrl.getOne);
+documentsRouter.post('/:id/request-signature', docCtrl.requestSignature);
+documentsRouter.post('/signatures/:signatureId/submit', docCtrl.submitSignature);
+documentsRouter.get('/approvals/list', docCtrl.listApprovals);
+documentsRouter.post('/approvals', (0, validation_1.requireFields)('resourceType', 'resourceId'), docCtrl.requestApproval);
+documentsRouter.post('/approvals/:id/decide', (0, authenticate_1.authorize)('super_admin', 'owner', 'admin', 'manager'), docCtrl.decideApproval);
+// ── Communication ──────────────────────────────────────────────────────────
+const communicationRouter = (0, express_1.Router)();
+exports.communicationRouter = communicationRouter;
+const commCtrl = new CommunicationController_1.CommunicationController();
+communicationRouter.use(authenticate_1.authenticate, middleware_1.rateLimiter);
+communicationRouter.get('/threads', commCtrl.listThreads);
+communicationRouter.post('/threads', commCtrl.createThread);
+communicationRouter.get('/threads/:threadId/messages', commCtrl.listMessages);
+communicationRouter.post('/threads/:threadId/messages', commCtrl.sendMessage);
+communicationRouter.get('/logs', commCtrl.listCommunicationLogs);
+communicationRouter.post('/send-email', (0, validation_1.requireFields)('recipient', 'subject', 'body'), commCtrl.sendEmail);
+communicationRouter.get('/notifications', commCtrl.listNotifications);
+communicationRouter.post('/notifications/:id/read', commCtrl.markNotificationRead);
+communicationRouter.post('/notifications/mark-all-read', commCtrl.markAllRead);
+communicationRouter.get('/stats', commCtrl.stats);
+// ── Accounting ─────────────────────────────────────────────────────────────
+const accountingRouter = (0, express_1.Router)();
+exports.accountingRouter = accountingRouter;
+const acctCtrl = new AccountingController_1.AccountingController();
+accountingRouter.use(authenticate_1.authenticate, middleware_1.rateLimiter);
+accountingRouter.get('/accounts', acctCtrl.listAccounts);
+accountingRouter.post('/accounts', (0, authenticate_1.authorize)('super_admin', 'owner', 'admin'), (0, validation_1.requireFields)('code', 'name', 'type'), acctCtrl.createAccount);
+accountingRouter.get('/journal-entries', acctCtrl.listJournalEntries);
+accountingRouter.post('/journal-entries', (0, authenticate_1.authorize)('super_admin', 'owner', 'admin'), (0, validation_1.requireFields)('entryDate', 'lines'), acctCtrl.createJournalEntry);
+accountingRouter.get('/general-ledger', acctCtrl.generalLedger);
+accountingRouter.get('/budgets', acctCtrl.listBudgets);
+accountingRouter.post('/budgets', (0, authenticate_1.authorize)('super_admin', 'owner', 'admin'), (0, validation_1.requireFields)('name', 'fiscalYear'), acctCtrl.createBudget);
+accountingRouter.get('/tax-rates', acctCtrl.listTaxRates);
+accountingRouter.post('/tax-rates', (0, authenticate_1.authorize)('super_admin', 'owner', 'admin'), (0, validation_1.requireFields)('name', 'rate'), acctCtrl.createTaxRate);
+accountingRouter.get('/cash-flow', acctCtrl.cashFlow);
+accountingRouter.get('/profit-and-loss', acctCtrl.profitAndLoss);
+//# sourceMappingURL=operations.js.map

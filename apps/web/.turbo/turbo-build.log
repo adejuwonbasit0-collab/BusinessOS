@@ -1,0 +1,18 @@
+
+> @nexos/web@1.0.0 build C:\Users\USER\Downloads\My Projects\nexos\apps\web
+> next build
+
+  ▲ Next.js 14.2.0
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+
+> Build error occurred
+Error: Jest worker encountered 1 child process exceptions, exceeding retry limit
+    at ChildProcessWorker.initialize (C:\Users\USER\Downloads\My Projects\nexos\node_modules\.pnpm\next@14.2.0_react-dom@18.3.1_react@18.3.1__react@18.3.1\node_modules\next\dist\compiled\jest-worker\index.js:1:11580)
+    at ChildProcessWorker._onExit (C:\Users\USER\Downloads\My Projects\nexos\node_modules\.pnpm\next@14.2.0_react-dom@18.3.1_react@18.3.1__react@18.3.1\node_modules\next\dist\compiled\jest-worker\index.js:1:12545)
+    at ChildProcess.emit (node:events:526:24)
+    at ChildProcess._handle.onexit (node:internal/child_process:295:12) {
+  type: 'WorkerError'
+}
+ ELIFECYCLE  Command failed with exit code 1.

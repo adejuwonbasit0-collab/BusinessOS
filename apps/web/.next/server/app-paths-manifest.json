@@ -1,0 +1,9 @@
+{
+  "/(auth)/register/page": "app/(auth)/register/page.js",
+  "/site/[subdomain]/page": "app/site/[subdomain]/page.js",
+  "/page": "app/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(dashboard)/sales/page": "app/(dashboard)/sales/page.js",
+  "/(dashboard)/erp/page": "app/(dashboard)/erp/page.js",
+  "/(dashboard)/communication/page": "app/(dashboard)/communication/page.js"
+}

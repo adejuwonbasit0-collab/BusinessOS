@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const BookingController_1 = require("../controllers/BookingController");
+const authenticate_1 = require("../middleware/authenticate");
+const middleware_1 = require("../middleware");
+const validation_1 = require("../lib/validation");
+const router = (0, express_1.Router)();
+const ctrl = new BookingController_1.BookingController();
+router.use(authenticate_1.authenticate, middleware_1.rateLimiter);
+router.get('/resources', ctrl.listResources);
+router.post('/resources', (0, authenticate_1.authorize)('super_admin', 'owner', 'admin', 'manager'), (0, validation_1.requireFields)('name'), ctrl.createResource);
+router.get('/', ctrl.listBookings);
+router.post('/', (0, validation_1.requireFields)('title', 'startAt', 'endAt'), ctrl.createBooking);
+router.patch('/:id/status', ctrl.updateBookingStatus);
+router.post('/:id/cancel', ctrl.cancelBooking);
+router.get('/availability', ctrl.checkAvailability);
+router.get('/stats', ctrl.stats);
+exports.default = router;
+//# sourceMappingURL=booking.js.map

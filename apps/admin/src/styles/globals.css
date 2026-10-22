@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 280 70% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 72.2% 50.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 280 70% 48%;
+    --radius: 0.625rem;
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 222.2 47.4% 20%;
+    --sidebar-accent: 214.3 31.8% 93%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+      'Apple Color Emoji', 'Segoe UI Emoji';
+  }
+
+  .dark {
+    --background: 260 15% 6%;
+    --foreground: 210 40% 95%;
+    --card: 260 15% 9%;
+    --card-foreground: 210 40% 95%;
+    --popover: 260 15% 9%;
+    --popover-foreground: 210 40% 95%;
+    --primary: 280 75% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 15% 16%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 260 15% 16%;
+    --muted-foreground: 215 20.2% 55.1%;
+    --accent: 260 15% 16%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 260 15% 16%;
+    --input: 260 15% 16%;
+    --ring: 280 75% 62%;
+    --sidebar-background: 260 18% 7%;
+    --sidebar-foreground: 210 40% 90%;
+    --sidebar-border: 260 15% 14%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+}
+
+@layer components {
+  .skeleton {
+    @apply animate-pulse rounded-md bg-muted;
+  }
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/60 rounded-xl shadow-sm;
+  }
+}

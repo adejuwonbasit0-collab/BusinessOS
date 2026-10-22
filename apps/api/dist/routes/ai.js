@@ -1,0 +1,24 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const AIController_1 = require("../controllers/AIController");
+const authenticate_1 = require("../middleware/authenticate");
+const middleware_1 = require("../middleware");
+const router = (0, express_1.Router)();
+const ctrl = new AIController_1.AIController();
+router.use(authenticate_1.authenticate, middleware_1.rateLimiter);
+router.use((0, authenticate_1.requireFeature)('ai'));
+router.post('/analyze', ctrl.analyzeBusinessDescription);
+router.post('/apply-analysis', (0, authenticate_1.authorize)('super_admin', 'owner', 'admin'), ctrl.applyBusinessAnalysis);
+router.post('/generate-workflow', ctrl.generateWorkflow);
+router.post('/generate-report', ctrl.generateReport);
+router.post('/generate-sops', ctrl.generateSOPs);
+router.post('/generate-policies', ctrl.generatePolicies);
+router.post('/generate-form', ctrl.generateForm);
+router.post('/generate-website-content', ctrl.generateWebsiteContent);
+router.post('/generate-dashboard', ctrl.generateDashboard);
+router.post('/chat', ctrl.chat);
+router.post('/score-lead', ctrl.scoreLead);
+router.post('/generate-portal', ctrl.generatePortal);
+exports.default = router;
+//# sourceMappingURL=ai.js.map
