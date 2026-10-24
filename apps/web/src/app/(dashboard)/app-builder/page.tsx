@@ -33,13 +33,15 @@ const FIELD_TYPES = [
   { value: 'text', label: 'Short Text' }, { value: 'textarea', label: 'Long Text' },
   { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' },
   { value: 'number', label: 'Number' }, { value: 'date', label: 'Date' },
-  { value: 'select', label: 'Dropdown' }, { value: 'checkbox', label: 'Checkbox' },
+  { value: 'select', label: 'Dropdown' }, { value: 'radio', label: 'Radio buttons' },
+  { value: 'checkbox', label: 'Checkbox' }, { value: 'file', label: 'File upload' },
 ];
 
 export default function AppBuilderPage() {
   const qc = useQueryClient();
   const [portalOpen, setPortalOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [portalForm, setPortalForm] = useState({ name: '', type: 'customer', description: '' });
@@ -66,6 +68,11 @@ export default function AppBuilderPage() {
     mutationFn: formsApi.create,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['forms'] }); toast({ title: 'Form created' }); setFormOpen(false); },
     onError: (e: any) => toast({ title: e.message, variant: 'destructive' }),
+  });
+  const updateFormMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => formsApi.update(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['forms'] }); toast({ title: 'Form updated' }); setFormOpen(false); setEditingFormId(null); },
+    onError: (e: any) => toast({ title: e.message || 'Could not update form', variant: 'destructive' }),
   });
 
   const aiFormMutation = useMutation({
@@ -94,7 +101,7 @@ export default function AppBuilderPage() {
   const forms = (formsData as any)?.data?.forms || [];
   const tables = (tablesData as any)?.data?.tables || [];
 
-  const addFormField = () => setNewForm(p => ({ ...p, fields: [...p.fields, { label: '', type: 'text', required: false }] }));
+  const addFormField = () => setNewForm(p => ({ ...p, fields: [...p.fields, { label: '', type: 'text', required: false, options: '' }] }));
   const removeFormField = (i: number) => setNewForm(p => ({ ...p, fields: p.fields.filter((_, idx) => idx !== i) }));
 
   const addTableField = () => setNewTable(p => ({ ...p, fields: [...p.fields, { name: '', type: 'text', label: '' }] }));
@@ -189,7 +196,7 @@ export default function AppBuilderPage() {
                   <p className="text-xs text-muted-foreground">{form.submission_count || 0} submissions · {form.is_published ? 'Published' : 'Draft'}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="h-7 text-xs">Edit</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { const fields = typeof form.fields === 'string' ? JSON.parse(form.fields) : (form.fields || []); setNewForm({ name: form.name, description: form.description || '', fields }); setEditingFormId(form.id); setFormOpen(true); }}>Edit</Button>
                   <Button size="sm" variant="ghost" className="h-7 w-7 text-destructive p-0" onClick={() => deleteFormMutation.mutate(form.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
@@ -260,28 +267,32 @@ export default function AppBuilderPage() {
       {/* ── Create Form Dialog ── */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Create Form</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingFormId ? 'Edit Form' : 'Create Form'}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-1">
             <div className="space-y-1.5"><Label>Form Name</Label><Input value={newForm.name} onChange={(e) => setNewForm(p => ({ ...p, name: e.target.value }))} /></div>
             <div className="space-y-2">
               <div className="flex items-center justify-between"><Label>Fields</Label><Button size="sm" variant="outline" className="h-7 text-xs" onClick={addFormField}><Plus className="h-3.5 w-3.5 mr-1" />Add Field</Button></div>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {newForm.fields.map((field, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={i} className="space-y-2">
+                  <div className="flex items-center gap-2">
                     <Input value={field.label} onChange={(e) => setNewForm(p => ({ ...p, fields: p.fields.map((f, idx) => idx === i ? { ...f, label: e.target.value } : f) }))} placeholder="Field label" className="flex-1" />
                     <Select value={field.type} onValueChange={(v) => setNewForm(p => ({ ...p, fields: p.fields.map((f, idx) => idx === i ? { ...f, type: v } : f) }))}>
                       <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                       <SelectContent>{FIELD_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                     </Select>
+                    <label className="flex items-center gap-1 text-xs whitespace-nowrap"><input type="checkbox" checked={Boolean(field.required)} onChange={(e) => setNewForm(p => ({ ...p, fields: p.fields.map((f, idx) => idx === i ? { ...f, required: e.target.checked } : f) }))} />Required</label>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removeFormField(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                  {(field.type === 'select' || field.type === 'radio') && <Input value={field.options || ''} onChange={(e) => setNewForm(p => ({ ...p, fields: p.fields.map((f, idx) => idx === i ? { ...f, options: e.target.value } : f) }))} placeholder="Options separated by commas, e.g. Basic, Premium, Enterprise" className="ml-0" />}
                   </div>
                 ))}
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-              <Button onClick={() => createFormMutation.mutate(newForm)} disabled={!newForm.name || createFormMutation.isPending}>
-                {createFormMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Create Form
+              <Button onClick={() => editingFormId ? updateFormMutation.mutate({ id: editingFormId, data: newForm }) : createFormMutation.mutate(newForm)} disabled={!newForm.name || createFormMutation.isPending || updateFormMutation.isPending}>
+                {(createFormMutation.isPending || updateFormMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editingFormId ? 'Save Form' : 'Create Form'}
               </Button>
             </div>
           </div>

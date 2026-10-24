@@ -41,7 +41,14 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/refresh') && !originalRequest.url?.includes('/auth/login')) {
+    // A visitor opening a public tenant website has no session by design.
+    // Do not turn its harmless `/auth/me` 401 into a refresh attempt and a
+    // forced redirect to the platform login page.
+    const hasStoredAccessToken = (() => {
+      if (typeof window === 'undefined') return false;
+      try { return Boolean(JSON.parse(sessionStorage.getItem('nexos-auth') || '{}')?.state?.accessToken); } catch { return false; }
+    })();
+    if (error.response?.status === 401 && hasStoredAccessToken && !originalRequest._retry && !originalRequest.url?.includes('/auth/refresh') && !originalRequest.url?.includes('/auth/login')) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => failedQueue.push({ resolve, reject }))
           .then((token) => { originalRequest.headers.Authorization = `Bearer ${token}`; return api(originalRequest); })

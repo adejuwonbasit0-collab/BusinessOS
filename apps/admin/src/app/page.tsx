@@ -11,15 +11,6 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
 
-const SAMPLE_GROWTH = [
-  { month: 'Jul', tenants: 3120, mrr: 198000 },
-  { month: 'Aug', tenants: 3340, mrr: 214000 },
-  { month: 'Sep', tenants: 3580, mrr: 231000 },
-  { month: 'Oct', tenants: 3820, mrr: 248000 },
-  { month: 'Nov', tenants: 4060, mrr: 268000 },
-  { month: 'Dec', tenants: 4284, mrr: 284000 },
-];
-
 function StatCard({ label, value, change, icon: Icon, color }: any) {
   const colorMap: Record<string, string> = {
     violet: 'bg-violet-500/10 text-violet-500',
@@ -51,12 +42,22 @@ function StatCard({ label, value, change, icon: Icon, color }: any) {
 }
 
 export default function AdminOverviewPage() {
-  const { data: statsData, isLoading } = useQuery({
+  const { data: statsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-platform-stats'],
     queryFn: adminApi.platformStats,
   });
 
   const stats = (statsData as any)?.data;
+
+  if (isError) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-center">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+        <div><h1 className="text-lg font-semibold">Platform data could not be loaded</h1><p className="mt-1 text-sm text-muted-foreground">Check that the API is running and sign in again if your session has expired.</p></div>
+        <button onClick={() => refetch()} className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">Retry</button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -68,29 +69,26 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Tenants"
-          value={(stats?.tenants?.total ?? 4284).toLocaleString()}
-          change={{ value: `+${stats?.tenants?.newThisMonth ?? 124} this month`, type: 'up' }}
+          value={isLoading ? '—' : (stats?.tenants?.total ?? 0).toLocaleString()}
+          change={isLoading ? undefined : { value: `+${stats?.tenants?.newThisMonth ?? 0} this month`, type: 'up' }}
           icon={Building2}
           color="violet"
         />
         <StatCard
           label="Platform MRR"
-          value={`$${((stats?.mrr ?? 284000) / 1000).toFixed(0)}k`}
-          change={{ value: '+18.2% vs last month', type: 'up' }}
+          value={isLoading ? '—' : `$${((stats?.mrr ?? 0) / 1000).toFixed(0)}k`}
           icon={DollarSign}
           color="green"
         />
         <StatCard
           label="Total Users"
-          value={(stats?.users?.total ?? 28940).toLocaleString()}
-          change={{ value: '+842 this month', type: 'up' }}
+          value={isLoading ? '—' : (stats?.users?.total ?? 0).toLocaleString()}
           icon={Users}
           color="blue"
         />
         <StatCard
           label="Churn (monthly)"
-          value={stats?.tenants?.churnThisMonth ?? 18}
-          change={{ value: '-2 vs last month', type: 'up' }}
+          value={isLoading ? '—' : (stats?.tenants?.churnThisMonth ?? 0)}
           icon={AlertTriangle}
           color="amber"
         />
@@ -100,33 +98,33 @@ export default function AdminOverviewPage() {
         <Card className="text-center">
           <CardContent className="pt-6">
             <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
-            <p className="text-xl font-bold">{stats?.tenants?.active ?? 3841}</p>
+            <p className="text-xl font-bold">{isLoading ? '—' : (stats?.tenants?.active ?? 0)}</p>
             <p className="text-xs text-muted-foreground mt-1">Active Tenants</p>
           </CardContent>
         </Card>
         <Card className="text-center">
           <CardContent className="pt-6">
             <Clock className="h-6 w-6 text-amber-500 mx-auto mb-2" />
-            <p className="text-xl font-bold">{stats?.tenants?.trial ?? 284}</p>
+            <p className="text-xl font-bold">{isLoading ? '—' : (stats?.tenants?.trial ?? 0)}</p>
             <p className="text-xs text-muted-foreground mt-1">On Trial</p>
           </CardContent>
         </Card>
         <Card className="text-center">
           <CardContent className="pt-6">
             <AlertTriangle className="h-6 w-6 text-red-500 mx-auto mb-2" />
-            <p className="text-xl font-bold">{stats?.tenants?.suspended ?? 12}</p>
+            <p className="text-xl font-bold">{isLoading ? '—' : (stats?.tenants?.suspended ?? 0)}</p>
             <p className="text-xs text-muted-foreground mt-1">Suspended</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      {!isLoading && stats?.growth?.length > 0 && <Card>
         <CardHeader>
           <CardTitle className="text-base">Growth Trend — Last 6 Months</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={SAMPLE_GROWTH}>
+            <AreaChart data={stats.growth}>
               <defs>
                 <linearGradient id="mrrGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
@@ -141,7 +139,7 @@ export default function AdminOverviewPage() {
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

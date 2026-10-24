@@ -50,22 +50,24 @@ export default function SalesPage() {
   const { data: quotesData } = useQuery({ queryKey: ['sales-quotations'], queryFn: () => salesApi.listQuotations() });
   const { data: productsData } = useQuery({ queryKey: ['inventory-products'], queryFn: () => api.get('/inventory/products') });
   const { data: categoriesData } = useQuery({ queryKey: ['inventory-categories'], queryFn: () => api.get('/inventory/categories') });
+  const { data: stockData } = useQuery({ queryKey: ['inventory-stock'], queryFn: () => api.get('/inventory/stock') });
+  const { data: warehousesData } = useQuery({ queryKey: ['inventory-warehouses'], queryFn: () => api.get('/inventory/warehouses') });
 
   const stats = (statsData as any)?.data;
   const orders = (ordersData as any)?.data?.orders || [];
   const quotes = (quotesData as any)?.data?.quotations || [];
   const products = (productsData as any)?.data?.products || [];
   const categories = (categoriesData as any)?.data?.categories || [];
+  const stock = (stockData as any)?.data?.stock || [];
+  const warehouses = (warehousesData as any)?.data?.warehouses || [];
+  const defaultWarehouse = warehouses.find((warehouse: any) => warehouse.is_default) || warehouses[0];
 
-  // Default fallback products if inventory is empty
-  const catalogProducts = products.length > 0 ? products : [
-    { id: 'def-1', name: 'Executive Suite Reservation (Night)', price: 180, sku: 'SUITE-01', barcode: '8849201', category: 'Accommodations' },
-    { id: 'def-2', name: 'Master Barber Haircut & Beard Trim', price: 55, sku: 'CUT-01', barcode: '8849202', category: 'Services' },
-    { id: 'def-3', name: 'Organic Cedarwood Beard Balm 50ml', price: 28, sku: 'BALM-50', barcode: '8849203', category: 'Retail' },
-    { id: 'def-4', name: 'Specialist Medical Consultation', price: 90, sku: 'MED-01', barcode: '8849204', category: 'Consultations' },
-    { id: 'def-5', name: 'Term Tuition Academic Assessment', price: 120, sku: 'EDU-01', barcode: '8849205', category: 'Tuition' },
-    { id: 'def-6', name: 'Private Jet Ramp & Ground Handling', price: 450, sku: 'AV-01', barcode: '8849206', category: 'Aviation' },
-  ];
+  // A new workspace has no inventory. Never manufacture products from other
+  // industries: create products in Inventory first, then they appear here.
+  const catalogProducts = products.filter((product: any) => {
+    if (!product.track_inventory) return true;
+    return stock.some((row: any) => row.product_id === product.id && Number(row.quantity_available) > 0);
+  });
 
   // Filtered POS products
   const filteredPosProducts = catalogProducts.filter((p: any) => {
@@ -134,9 +136,19 @@ export default function SalesPage() {
   };
 
   // Process POS Checkout & Generate Receipt Prompt
-  const handleCompletePosSale = (paymentMethod: string) => {
+  const handleCompletePosSale = async (paymentMethod: string) => {
+    if (!posCart.length) return;
+    try {
+      const result: any = await salesApi.createOrder({
+        items: posCart.map((item) => ({ productId: item.id, quantity: item.quantity, unitPrice: item.price })),
+        warehouseId: defaultWarehouse?.id,
+        channel: 'pos',
+      });
+      const order = result?.data?.order;
+      if (!order) throw new Error('The sale was not recorded.');
+      await salesApi.recordPayment(order.id, { amount: cartGrandTotal, method: paymentMethod.toLowerCase() });
     const receiptData = {
-      receiptNumber: `REC-${Math.floor(100000 + Math.random() * 900000)}`,
+      receiptNumber: order.orderNumber || order.order_number || order.id,
       date: new Date().toLocaleString(),
       cashier: `${user?.firstName || 'Staff'} ${user?.lastName || ''}`,
       businessName: tenant?.name || 'NexOS Enterprise',
@@ -154,7 +166,12 @@ export default function SalesPage() {
     setPosCart([]);
     qc.invalidateQueries({ queryKey: ['sales-orders'] });
     qc.invalidateQueries({ queryKey: ['sales-stats'] });
-    toast({ title: 'Sale completed successfully!' });
+      qc.invalidateQueries({ queryKey: ['inventory-products'] });
+      qc.invalidateQueries({ queryKey: ['inventory-stock'] });
+      toast({ title: 'Sale recorded successfully.' });
+    } catch (error: any) {
+      toast({ title: error.message || 'Could not record this sale.', variant: 'destructive' });
+    }
   };
 
   return (
@@ -254,7 +271,11 @@ export default function SalesPage() {
 
               {/* POS Product Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[580px] overflow-y-auto p-1">
-                {filteredPosProducts.map((prod: any) => (
+                {filteredPosProducts.length === 0 ? (
+                  <div className="col-span-full rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    No products are available yet. Create a real product in <button type="button" className="font-medium text-indigo-600 underline" onClick={() => window.location.href = '/inventory'}>Inventory</button> before recording a sale.
+                  </div>
+                ) : filteredPosProducts.map((prod: any) => (
                   <button
                     key={prod.id}
                     onClick={() => addToPosCart(prod)}

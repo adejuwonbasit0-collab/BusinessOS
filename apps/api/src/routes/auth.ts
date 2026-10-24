@@ -14,12 +14,20 @@ const ctrl = new AuthController();
 // much tighter limit to the credential endpoints.
 router.use(authFloodLimiter);
 
+router.get('/username-suggestions', authRateLimiter, asyncHandler(ctrl.usernameSuggestions));
+
 router.post('/register', authRateLimiter, [
   body('firstName').notEmpty(),
   body('lastName').notEmpty(),
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 8 }),
   body('businessName').notEmpty(),
+  body('username')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ min: 3, max: 32 })
+    .withMessage('Username must be 3-32 characters')
+    .matches(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, 'Username must be lowercase letters, numbers, and hyphens (cannot start or end with a hyphen)'),
 ], validate, asyncHandler(ctrl.register));
 
 router.post('/login', authRateLimiter, [

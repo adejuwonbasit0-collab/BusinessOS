@@ -121,23 +121,18 @@ export default function WebsitePage() {
   // Websites List Query
   const { data, isLoading } = useQuery({
     queryKey: ['websites'],
-    queryFn: () => api.get('/portals?type=website') as Promise<any>,
+    queryFn: () => api.get('/websites') as Promise<any>,
   });
 
-  const websites = (data as any)?.data?.portals || [
-    {
-      id: 'site-default',
-      name: `${tenant?.name || 'My Business'} Official Portal`,
-      type: 'website',
-      description: 'Official public web presence with services, bookings, and contact inquiries.',
-      is_published: true,
-      custom_domain: tenant?.customDomain || null,
-      updated_at: '2026-10-22T21:00:00Z',
-    },
-  ];
+  const websites = (data as any)?.data?.websites || [];
+  const publicUrl = () => {
+    if (!tenant?.subdomain || typeof window === 'undefined') return '/';
+    const port = window.location.port ? `:${window.location.port}` : '';
+    return `${window.location.protocol}//${tenant.subdomain}.localhost${port}`;
+  };
 
   // ── Finish Setup Wizard & Generate Website ──────────────────────────────────
-  const handleCompleteWizard = () => {
+  const handleCompleteWizard = async () => {
     // Generate tailored blocks based on answers
     let defaultTitle = 'Welcome to Our Official Platform';
     let defaultSub = 'Browse our services, schedule appointments, and connect with our team.';
@@ -204,16 +199,21 @@ export default function WebsitePage() {
       },
     ];
 
-    setCmsBlocks(generatedBlocks);
-    setWizardOpen(false);
-    setWizardStep(1);
-
-    toast({
-      title: 'Website generated successfully!',
-      description: wizardAnswers.linkAsPublic
-        ? `Linked as your public site at ${tenant?.subdomain || 'tenant'}.localhost:3002`
-        : 'Saved as draft website. You can edit blocks before publishing.',
-    });
+    try {
+      await api.post('/websites', {
+        name: wizardAnswers.siteName,
+        blocks: generatedBlocks,
+        publish: wizardAnswers.linkAsPublic,
+        theme: { style: wizardAnswers.themeStyle, template: wizardAnswers.siteType },
+      });
+      setCmsBlocks(generatedBlocks);
+      setWizardOpen(false);
+      setWizardStep(1);
+      await qc.invalidateQueries({ queryKey: ['websites'] });
+      toast({ title: 'Website saved', description: wizardAnswers.linkAsPublic ? `Published at ${publicUrl()}` : 'Saved as a draft. Open it in the CMS editor when you are ready to publish.' });
+    } catch (error: any) {
+      toast({ title: 'Website could not be saved', description: error?.message || 'Please try again.', variant: 'destructive' });
+    }
   };
 
   // Block Manipulation in Visual CMS
@@ -272,7 +272,7 @@ export default function WebsitePage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open(`/site/${tenant?.subdomain || 'demo'}`, '_blank')}
+            onClick={() => window.open(publicUrl(), '_blank')}
             className="text-xs gap-1.5"
           >
             <ExternalLink className="h-3.5 w-3.5" /> View Live Public Page
@@ -318,9 +318,7 @@ export default function WebsitePage() {
                 </div>
 
                 <CardContent className="p-4 space-y-3">
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {site.description || 'Full interactive public portal with services, booking, and WhatsApp orders.'}
-                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{site.is_published ? 'Published public website.' : 'Draft website — not public yet.'}</p>
 
                   <div className="pt-2 border-t flex items-center justify-between gap-2">
                     <Button
@@ -676,16 +674,23 @@ export default function WebsitePage() {
                   size="sm"
                   variant="outline"
                   className="text-xs h-8"
-                  onClick={() => window.open(`/site/${tenant?.subdomain || 'demo'}`, '_blank')}
+                  onClick={() => window.open(publicUrl(), '_blank')}
                 >
                   <Eye className="h-3.5 w-3.5 mr-1" /> Live Preview
                 </Button>
                 <Button
                   size="sm"
                   className="bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-8"
-                  onClick={() => {
-                    toast({ title: 'Page blocks saved and published live!' });
-                    setBuilderOpen(false);
+                  onClick={async () => {
+                    if (!builderSite) return;
+                    try {
+                      await api.post('/websites', { id: builderSite.id, name: builderSite.name, blocks: cmsBlocks, publish: true });
+                      await qc.invalidateQueries({ queryKey: ['websites'] });
+                      toast({ title: 'Page saved and published live.' });
+                      setBuilderOpen(false);
+                    } catch (error: any) {
+                      toast({ title: 'Publishing failed', description: error?.message || 'Please try again.', variant: 'destructive' });
+                    }
                   }}
                 >
                   Save & Publish Page

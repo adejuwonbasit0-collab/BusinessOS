@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
-import { brandingApi, TenantBranding } from '@/lib/brandingApi';
+import { brandingApi, brandingAssetUrl, TenantBranding } from '@/lib/brandingApi';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -162,7 +162,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label>Logo</Label>
               {form.logoUrl ? (
-                <img src={form.logoUrl} alt="Logo" className="h-16 w-16 rounded-lg object-contain border border-slate-200" />
+                <img src={brandingAssetUrl(form.logoUrl) || ''} alt="Logo" className="h-16 w-16 rounded-lg object-contain border border-slate-200" />
               ) : (
                 <div className="h-16 w-16 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
                   <Upload className="h-5 w-5" />
@@ -176,7 +176,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label>Favicon</Label>
               {form.faviconUrl ? (
-                <img src={form.faviconUrl} alt="Favicon" className="h-8 w-8 rounded object-contain border border-slate-200" />
+                <img src={brandingAssetUrl(form.faviconUrl) || ''} alt="Favicon" className="h-8 w-8 rounded object-contain border border-slate-200" />
               ) : (
                 <div className="h-8 w-8 rounded border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
                   <Upload className="h-3 w-3" />

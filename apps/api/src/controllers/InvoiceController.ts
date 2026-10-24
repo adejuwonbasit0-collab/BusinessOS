@@ -30,7 +30,7 @@ export class InvoiceController {
 
   create = async (req: Request, res: Response) => {
     const tenantId = req.tenant!.id;
-    const { contactId, items, notes, dueDate, currency } = req.body;
+    const { contactId, items, notes, dueDate, currency, templateKey } = req.body;
 
     const tenant = await db('tenants').where({ id: tenantId }).first();
     const [{ count }] = await db('invoices').where({ tenant_id: tenantId }).count('id as count');
@@ -57,7 +57,7 @@ export class InvoiceController {
         tenant_id: tenantId, contact_id: contactId || null, created_by: req.user!.id,
         invoice_number: invoiceNumber, status: 'draft', subtotal, total: subtotal,
         amount_paid: 0, amount_due: subtotal, currency: currency || tenant.currency || 'USD',
-        notes: notes || null, issue_date: new Date(), due_date: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 86400000),
+        notes: notes || null, template_key: templateKey || 'classic', issue_date: new Date(), due_date: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 86400000),
       }).returning('*');
 
       if (lineItems.length > 0) {
@@ -84,10 +84,16 @@ export class InvoiceController {
     const tenant = await db('tenants').where({ id: tenantId }).first();
 
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const templateColours: Record<string, string> = { classic: '#1f2937', modern: '#4f46e5', ocean: '#0369a1', forest: '#047857', sunset: '#c2410c', plum: '#7e22ce', rose: '#be123c', slate: '#334155' };
+    const templateKey = String(invoice.template_key || 'classic');
+    const accent = templateColours[templateKey.split('-')[0]] || templateColours[Object.keys(templateColours)[templateKey.length % Object.keys(templateColours).length]];
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="invoice-${invoice.invoice_number}.pdf"`);
     doc.pipe(res);
 
+    // The chosen template changes the printed invoice accent, while all PDF
+    // figures remain the real persisted invoice values.
+    doc.rect(50, 42, 500, 7).fill(accent);
     // Header with tenant branding
     doc.fontSize(20).font('Helvetica-Bold').text(tenant.name || 'Invoice', 50, 50);
     if (tenant.address) doc.fontSize(9).font('Helvetica').text(tenant.address, 50, 75);

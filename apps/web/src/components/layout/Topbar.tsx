@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useAuthStore } from '@/store/authStore';
 import { useBranding } from '@/components/providers/TenantBrandingProvider';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -21,11 +20,9 @@ export function Topbar() {
     <header className="h-13 border-b bg-sidebar flex items-center px-4 gap-3 shrink-0">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {branding?.logoUrl && (
-          <Image
+          <img
             src={branding.logoUrl}
             alt=""
-            width={24}
-            height={24}
             className="h-6 w-6 shrink-0 rounded object-contain"
           />
         )}

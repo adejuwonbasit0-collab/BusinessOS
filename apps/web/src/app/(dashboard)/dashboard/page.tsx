@@ -77,14 +77,7 @@ export default function AdaptiveDashboardPage() {
     ],
   });
 
-  const [customModules, setCustomModules] = useState<Array<any>>([
-    {
-      id: 'custom-1',
-      name: 'Incident & Inspection Logs',
-      recordsCount: 12,
-      lastUpdated: 'Today, 2:15 PM',
-    },
-  ]);
+  const [customModules, setCustomModules] = useState<Array<any>>([]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -109,6 +102,16 @@ export default function AdaptiveDashboardPage() {
     revenue: parseFloat(r.revenue || 0),
     profit: parseFloat(r.revenue || 0) * 0.64,
   })), [exec]);
+  // Only database-backed figures belong on an operating dashboard. The niche
+  // labels remain helpful, but demo counts and imaginary percentage changes do
+  // not represent a tenant's business.
+  const liveKpis = useMemo(() => [
+    { label: 'Revenue this month', value: exec ? `${tenant?.currency || 'USD'} ${Number(exec.revenue?.current || 0).toLocaleString()}` : '—', sub: 'Paid invoices', icon: currentNiche.icon },
+    { label: 'Sales orders this month', value: exec ? Number(exec.orders?.current || 0).toLocaleString() : '—', sub: 'Recorded orders', icon: currentNiche.icon },
+    { label: 'Customers / records', value: exec ? Number(exec.customers?.current || 0).toLocaleString() : '—', sub: 'Saved CRM records', icon: currentNiche.icon },
+    { label: 'Overdue invoices', value: exec ? Number(exec.alerts?.overdueInvoices || 0).toLocaleString() : '—', sub: 'Needs follow-up', icon: currentNiche.icon },
+  ], [exec, tenant?.currency, currentNiche.icon]);
+  const quickActionPath = (action: string) => action === 'contacts' ? '/crm/contacts' : `/${action}`;
 
   const enabledModules = useMemo(() => {
     return Array.isArray(tenant?.enabledModules) ? tenant.enabledModules : [];
@@ -207,7 +210,7 @@ export default function AdaptiveDashboardPage() {
             size="sm"
             variant="secondary"
             className="h-8 text-xs font-medium shrink-0 gap-1.5 bg-card hover:bg-accent border shadow-2xs"
-            onClick={() => router.push(`/${qa.action}`)}
+            onClick={() => router.push(quickActionPath(qa.action))}
           >
             <span>{qa.label}</span>
           </Button>
@@ -224,7 +227,7 @@ export default function AdaptiveDashboardPage() {
 
       {/* ── Niche KPIs Grid ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {currentNiche.kpis.map((kpi, idx) => (
+        {liveKpis.map((kpi, idx) => (
           <Card key={idx} className="relative overflow-hidden shadow-xs hover:border-primary/40 transition-all">
             <CardContent className="pt-5 pb-4">
               <div className="flex items-start justify-between mb-2">
@@ -233,12 +236,6 @@ export default function AdaptiveDashboardPage() {
               </div>
               <div className="flex items-baseline justify-between">
                 <p className="text-2xl font-bold tracking-tight text-foreground">{kpi.value}</p>
-                {kpi.change !== undefined && (
-                  <span className={cn('text-xs font-semibold flex items-center', kpi.change >= 0 ? 'text-green-600' : 'text-red-500')}>
-                    {kpi.change >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                    {Math.abs(kpi.change)}%
-                  </span>
-                )}
               </div>
               {kpi.sub && <p className="text-[11px] text-muted-foreground mt-1">{kpi.sub}</p>}
             </CardContent>
@@ -610,25 +607,12 @@ export default function AdaptiveDashboardPage() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y">
-                      {currentNiche.mockRecords.map((row, i) => (
-                        <tr key={i} className="hover:bg-muted/40 transition-colors">
-                          <td className="py-3 px-3 font-medium text-foreground">{row.col1}</td>
-                          <td className="py-3 px-3 text-muted-foreground">{row.col2}</td>
-                          <td className="py-3 px-3 text-muted-foreground">{row.col3}</td>
-                          <td className="py-3 px-3 text-muted-foreground">{row.col4}</td>
-                          <td className="py-3 px-3">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-700 dark:text-green-400">
-                              {row.col5}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right">
-                            <Button size="sm" variant="ghost" className="h-7 text-xs text-indigo-600 hover:text-indigo-700">
-                              Manage
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody>
+                      <tr>
+                        <td colSpan={currentNiche.operationalColumns.length} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                          No operational records yet. Create real records in the relevant module; this dashboard will then show only persisted business data.
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -645,14 +629,8 @@ export default function AdaptiveDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueChartData.length ? revenueChartData : [
-                    { month: 'Jun', revenue: 24000, profit: 15300 },
-                    { month: 'Jul', revenue: 31000, profit: 19800 },
-                    { month: 'Aug', revenue: 38000, profit: 24300 },
-                    { month: 'Sep', revenue: 42000, profit: 26800 },
-                    { month: 'Oct', revenue: 48250, profit: 30880 },
-                  ]}>
+                {revenueChartData.length ? <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={revenueChartData}>
                     <defs>
                       <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -666,7 +644,7 @@ export default function AdaptiveDashboardPage() {
                     <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2} fill="url(#revGrad)" name="Gross Revenue" />
                     <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={2} fill="none" name="Net Margin" />
                   </AreaChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No revenue history is available yet.</div>}
               </div>
             </CardContent>
           </Card>

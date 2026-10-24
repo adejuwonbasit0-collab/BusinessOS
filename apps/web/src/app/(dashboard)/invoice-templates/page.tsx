@@ -1,0 +1,18 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { Check, Eye, FileText, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+const templates = ['Classic', 'Modern Indigo', 'Ocean Clean', 'Forest Ledger', 'Sunset Studio', 'Plum Premium', 'Rose Editorial', 'Slate Minimal', 'Cobalt Studio', 'Amber Ledger', 'Emerald Edge', 'Coral Invoice', 'Navy Executive', 'Lavender Note', 'Mint Paper', 'Graphite Pro', 'Azure Grid', 'Copper Craft', 'Ruby Receipt', 'Teal Balance', 'Midnight Board', 'Sandstone', 'Orchid Desk', 'Skyline', 'Olive Ledger', 'Pearl Minimal', 'Indigo Stripe', 'Saffron Note', 'Arctic Blue', 'Monochrome', 'Cedar Studio', 'Violet Formal'];
+const colours = ['#4f46e5', '#0369a1', '#047857', '#c2410c', '#7e22ce', '#be123c', '#334155', '#0f766e'];
+const keyFor = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+export default function InvoiceTemplatesPage() {
+  const [selected, setSelected] = useState(() => typeof window === 'undefined' ? 'classic' : window.localStorage.getItem('nexos:invoice-template') || 'classic');
+  const [preview, setPreview] = useState<string | null>(null);
+  function choose(name: string) { const key = keyFor(name); window.localStorage.setItem('nexos:invoice-template', key); setSelected(key); }
+  return <div className="space-y-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="flex items-center gap-2 text-2xl font-bold"><FileText className="text-indigo-600" />Invoice templates</h1><p className="mt-1 text-sm text-muted-foreground">Choose a design for new, real invoices. The selected design is used in its downloadable PDF.</p></div><Button asChild><Link href="/finance">Create invoice</Link></Button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{templates.map((name, index) => { const key = keyFor(name); const colour = colours[index % colours.length]; return <article key={name} className="overflow-hidden rounded-xl border bg-card"><div className="h-36 p-4 text-white" style={{ background: `linear-gradient(135deg, ${colour}, #ffffff22)` }}><div className="rounded bg-white/15 p-2 text-[10px]"><div className="font-bold">YOUR BUSINESS</div><div className="mt-5 text-lg font-semibold">INVOICE</div><div className="mt-3 border-t border-white/40 pt-1">Bill to · Item · Total</div></div></div><div className="space-y-3 p-3"><p className="text-sm font-semibold">{name}</p><div className="flex gap-2"><Button size="sm" variant="outline" className="flex-1" onClick={() => setPreview(name)}><Eye className="mr-1 h-3.5 w-3.5" />Preview</Button><Button size="sm" className="flex-1" variant={selected === key ? 'default' : 'secondary'} onClick={() => choose(name)}>{selected === key ? <><Check className="mr-1 h-3.5 w-3.5" />Selected</> : 'Use template'}</Button></div></div></article>; })}</div><Dialog open={!!preview} onOpenChange={(open) => !open && setPreview(null)}><DialogContent><DialogHeader><DialogTitle>{preview} preview</DialogTitle></DialogHeader>{preview && <div className="rounded-xl p-7 text-white" style={{ background: colours[templates.indexOf(preview) % colours.length] }}><p className="text-lg font-bold">YOUR BUSINESS</p><p className="mt-12 text-3xl font-semibold">INVOICE</p><div className="mt-8 rounded bg-white/15 p-4 text-sm">A live invoice will use your business name, customer, line items, currency and real totals. Download it from Finance after creating it.</div></div>}<Button onClick={() => preview && choose(preview)}><Sparkles className="mr-2 h-4 w-4" />Use this template</Button></DialogContent></Dialog></div>;
+}

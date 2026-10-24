@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { db } from '../lib/database';
-import { NotFoundError } from '../lib/errors';
+import { AppError, NotFoundError } from '../lib/errors';
 import { AuditService } from '../services/index';
 import { lineItemName } from '../lib/validation';
 
@@ -25,7 +25,12 @@ export class SalesController {
 
   createOrder = async (req: Request, res: Response) => {
     const tenantId = req.tenant!.id;
-    const { contactId, branchId, warehouseId, channel = 'manual', items, discountAmount = 0 } = req.body;
+    const { contactId, branchId, warehouseId: requestedWarehouseId, channel = 'manual', items, discountAmount = 0 } = req.body;
+    // POS uses the tenant's default warehouse unless the cashier selected a
+    // specific one. A sale must have a stock location; otherwise it cannot
+    // truthfully reduce available quantity.
+    const defaultWarehouse = requestedWarehouseId ? null : await db('warehouses').where({ tenant_id: tenantId, is_default: true }).first();
+    const warehouseId = requestedWarehouseId || defaultWarehouse?.id || null;
 
     const [{ count }] = await db('sales_orders').where({ tenant_id: tenantId }).count('id as count');
     const orderNumber = `ORD-${new Date().getFullYear()}-${String(parseInt(count as string) + 1).padStart(5, '0')}`;
@@ -48,6 +53,17 @@ export class SalesController {
     const total = subtotal - discountAmount;
 
     const [order] = await db.transaction(async (trx) => {
+      for (const item of lineItems) {
+        if (!item.product_id) continue;
+        const product = await trx('products').where({ id: item.product_id, tenant_id: tenantId }).whereNull('deleted_at').first();
+        if (!product) throw new AppError('A product in this sale no longer exists.', 400, 'PRODUCT_NOT_FOUND');
+        if (!product.track_inventory) continue;
+        if (!warehouseId) throw new AppError('Set up a warehouse before selling stocked products.', 400, 'WAREHOUSE_REQUIRED');
+        const stockRow = await trx('stock_levels').where({ tenant_id: tenantId, warehouse_id: warehouseId, product_id: item.product_id, variant_id: item.variant_id }).first();
+        if (!stockRow || Number(stockRow.quantity_available) < item.quantity) {
+          throw new AppError(`Insufficient available stock for ${product.name}.`, 400, 'INSUFFICIENT_STOCK');
+        }
+      }
       const [o] = await trx('sales_orders').insert({
         tenant_id: tenantId, branch_id: branchId || null, warehouse_id: warehouseId || null, contact_id: contactId || null,
         created_by: req.user!.id, order_number: orderNumber, channel, subtotal, discount_amount: discountAmount, total, amount_paid: 0,
@@ -56,10 +72,12 @@ export class SalesController {
       if (lineItems.length) {
         await trx('sales_order_items').insert(lineItems.map((i: any) => ({ ...i, order_id: o.id })));
 
-        // Decrement stock if warehouse specified and product tracks inventory
+        // Decrement only validated, available stock.
         if (warehouseId) {
           for (const item of lineItems) {
             if (!item.product_id) continue;
+            const product = await trx('products').where({ id: item.product_id, tenant_id: tenantId }).first();
+            if (!product?.track_inventory) continue;
             const stockRow = await trx('stock_levels').where({ tenant_id: tenantId, warehouse_id: warehouseId, product_id: item.product_id, variant_id: item.variant_id }).first();
             if (stockRow) {
               await trx('stock_levels').where({ id: stockRow.id }).update({

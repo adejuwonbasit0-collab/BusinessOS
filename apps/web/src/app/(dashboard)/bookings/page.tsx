@@ -22,15 +22,23 @@ const STATUS_COLORS: Record<string, string> = {
 export default function BookingsPage() {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', startAt: '', endAt: '', partySize: '1', price: '0' });
+  const [resourceOpen, setResourceOpen] = useState(false);
+  const [resourceForm, setResourceForm] = useState({ name: '', type: 'service' });
+  const [form, setForm] = useState({ title: '', resourceId: '', startAt: '', endAt: '', partySize: '1', price: '0' });
 
   const { data: statsData } = useQuery({ queryKey: ['booking-stats'], queryFn: bookingApi.stats });
   const { data: bookingsData, isLoading } = useQuery({ queryKey: ['bookings'], queryFn: () => bookingApi.list() });
+  const { data: resourcesData } = useQuery({ queryKey: ['booking-resources'], queryFn: bookingApi.listResources });
 
   const createMutation = useMutation({
     mutationFn: (data: any) => bookingApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bookings'] }); setCreateOpen(false); setForm({ title: '', startAt: '', endAt: '', partySize: '1', price: '0' }); toast({ title: 'Booking created' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bookings'] }); setCreateOpen(false); setForm({ title: '', resourceId: '', startAt: '', endAt: '', partySize: '1', price: '0' }); toast({ title: 'Booking created' }); },
     onError: (e: any) => toast({ title: e.message || 'Failed to create booking', variant: 'destructive' }),
+  });
+  const resourceMutation = useMutation({
+    mutationFn: (data: any) => bookingApi.createResource(data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['booking-resources'] }); setResourceOpen(false); setResourceForm({ name: '', type: 'service' }); toast({ title: 'Bookable resource added' }); },
+    onError: (e: any) => toast({ title: e.message || 'Could not add resource', variant: 'destructive' }),
   });
 
   const updateMutation = useMutation({
@@ -40,14 +48,13 @@ export default function BookingsPage() {
 
   const stats = (statsData as any)?.data;
   const bookings = (bookingsData as any)?.data?.bookings || [];
+  const resources = (resourcesData as any)?.data?.resources || [];
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div><h1 className="text-2xl font-bold tracking-tight">Bookings & Reservations</h1><p className="text-sm text-muted-foreground mt-1">Appointments, reservations, and scheduling</p></div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />New Booking
-        </Button>
+        <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setResourceOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Resource</Button><Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />New Booking</Button></div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -98,6 +105,7 @@ export default function BookingsPage() {
               <Label>Title</Label>
               <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="Haircut - John" />
             </div>
+            <div className="space-y-1.5"><Label>Resource</Label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.resourceId} onChange={(event) => setForm((current) => ({ ...current, resourceId: event.target.value }))}><option value="">No specific resource</option>{resources.map((resource: any) => <option key={resource.id} value={resource.id}>{resource.name} ({resource.type})</option>)}</select><p className="text-xs text-muted-foreground">Select a staff member, room, chair, vehicle, or service to prevent double-booking.</p></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Start</Label>
@@ -124,6 +132,7 @@ export default function BookingsPage() {
                 if (!form.title || !form.startAt || !form.endAt) { toast({ title: 'Title and time range are required', variant: 'destructive' }); return; }
                 createMutation.mutate({
                   title: form.title,
+                  resourceId: form.resourceId || undefined,
                   startAt: new Date(form.startAt).toISOString(),
                   endAt: new Date(form.endAt).toISOString(),
                   partySize: parseInt(form.partySize) || 1,
@@ -134,6 +143,8 @@ export default function BookingsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={resourceOpen} onOpenChange={setResourceOpen}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Add bookable resource</DialogTitle></DialogHeader><div className="space-y-3"><div><Label>Name</Label><Input value={resourceForm.name} onChange={(event) => setResourceForm((current) => ({ ...current, name: event.target.value }))} placeholder="Consultation Room 1, John the Barber…" /></div><div><Label>Type</Label><Input value={resourceForm.type} onChange={(event) => setResourceForm((current) => ({ ...current, type: event.target.value }))} placeholder="room, staff, chair, vehicle…" /></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setResourceOpen(false)}>Cancel</Button><Button disabled={!resourceForm.name || resourceMutation.isPending} onClick={() => resourceMutation.mutate(resourceForm)}>{resourceMutation.isPending ? 'Saving…' : 'Add resource'}</Button></div></div></DialogContent></Dialog>
     </div>
   );
 }

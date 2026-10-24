@@ -26,10 +26,11 @@ export class InventoryController {
 
   createProduct = async (req: Request, res: Response) => {
     const tenantId = req.tenant!.id;
-    const { name, sku, categoryId, price, cost, trackInventory, reorderPoint, reorderQuantity, barcode } = req.body;
+    const { name, sku, categoryId, price, cost, trackInventory, reorderPoint, reorderQuantity, barcode, imageUrl, description, unit } = req.body;
     const [product] = await db('products').insert({
       tenant_id: tenantId, name, sku, category_id: categoryId || null, price: price || 0, cost: cost || 0,
       track_inventory: !!trackInventory, reorder_point: reorderPoint || 0, reorder_quantity: reorderQuantity || 0, barcode,
+      image_url: imageUrl || null, description: description || null, unit: unit || 'unit',
     }).returning('*');
     res.status(201).json({ success: true, data: { product } });
   };

@@ -1,5 +1,14 @@
 import { api } from './api';
 
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+/** Branding uploads are served by the API, not by the Next.js application. */
+export function brandingAssetUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+  return `${API_ORIGIN}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
 /**
  * Branding API.
  *
@@ -12,6 +21,8 @@ import { api } from './api';
  */
 export const brandingApi = {
   get: async () => (await api.get('/branding')).data as BrandingResponse,
+  getPublic: async (host: string) =>
+    (await api.get('/branding/public', { params: { host } })).data as { branding: TenantBranding; hostname: string; published: boolean },
   update: async (payload: Record<string, any>) =>
     (await api.patch('/branding', payload)).data as { branding: TenantBranding },
   preview: async (payload: Record<string, any>) =>
@@ -51,6 +62,7 @@ export interface TenantBranding {
   registrationNumber: string | null;
   websiteTitle: string;
   hidePoweredBy: boolean;
+  dashboardTheme?: string;
 }
 
 export interface NavigationItem {

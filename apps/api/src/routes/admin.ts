@@ -26,6 +26,11 @@ router.get('/users', ctrl.listAllUsers);
 router.get('/audit-logs', ctrl.listAuditLogs);
 router.get('/revenue', ctrl.revenueOverview);
 
+// ── Global platform integrations ──────────────────────────────────────────
+router.get('/integrations', ctrl.listGlobalIntegrations);
+router.post('/integrations', ctrl.saveGlobalIntegration);
+router.post('/integrations/:id/test', ctrl.testGlobalIntegration);
+
 // ── Business catalogue ────────────────────────────────────────────────────
 // The platform owner manages the industry catalogue, its categories and the
 // dashboard presets without editing application source code.

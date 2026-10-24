@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -36,6 +35,7 @@ const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
       { label: 'Dashboard',   href: '/dashboard',     icon: LayoutDashboard, module: 'dashboard' },
       { label: 'Analytics',   href: '/analytics',     icon: BarChart3,       module: 'analytics' },
       { label: 'AI Assistant',href: '/ai',            icon: Sparkles,        module: 'ai' },
+      { label: 'Billing',     href: '/billing',       icon: CreditCard,      module: 'dashboard' },
     ],
   },
   {
@@ -52,7 +52,7 @@ const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { label: 'ERP',        href: '/erp',           icon: Boxes,          module: 'erp' },
       { label: 'Inventory',  href: '/inventory',      icon: Package,        module: 'inventory' },
-      { label: 'Purchases',  href: '/purchases',      icon: Truck,          module: 'inventory' },
+      { label: 'Purchases',  href: '/inventory',      icon: Truck,          module: 'inventory' },
       { label: 'HR',         href: '/hr',             icon: Briefcase,      module: 'hr' },
       { label: 'Projects',   href: '/projects',       icon: Kanban,         module: 'projects' },
       { label: 'Bookings',   href: '/bookings',       icon: Calendar,       module: 'booking' },
@@ -109,6 +109,55 @@ const REMOTE_ICONS: Record<string, LucideIcon> = {
   settings: Settings,
 };
 
+// These are platform fundamentals. Every owner needs a way to manage people,
+// money, records, integrations and workspace settings regardless of niche.
+const UNIVERSAL_WORKSPACE_NAV = [
+  { key: 'billing', label: 'Billing', href: '/billing', icon: 'credit-card', module: 'dashboard', section: 'Overview' },
+  { key: 'crm', label: 'CRM', href: '/crm/contacts', icon: 'users-2', module: 'crm', section: 'Sales & CRM' },
+  { key: 'sales', label: 'Sales & POS', href: '/sales', icon: 'shopping-cart', module: 'sales', section: 'Sales & CRM' },
+  { key: 'finance', label: 'Finance & Invoices', href: '/finance', icon: 'credit-card', module: 'finance', section: 'Sales & CRM' },
+  { key: 'accounting', label: 'Accounting', href: '/accounting', icon: 'calculator', module: 'accounting', section: 'Sales & CRM' },
+  { key: 'inventory', label: 'Inventory & Purchases', href: '/inventory', icon: 'package', module: 'inventory', section: 'Operations' },
+  { key: 'bookings', label: 'Bookings', href: '/bookings', icon: 'calendar', module: 'booking', section: 'Operations' },
+  { key: 'roles', label: 'Users & Roles', href: '/roles', icon: 'shield', module: 'dashboard', section: 'Organization' },
+  { key: 'integrations', label: 'Integrations', href: '/integrations', icon: 'link', module: 'integrations', section: 'Platform' },
+  { key: 'settings', label: 'Settings & Branding', href: '/settings', icon: 'settings', module: 'dashboard', section: 'Organization' },
+  { key: 'themes', label: 'Themes & Styles', href: '/themes', icon: 'palette', module: 'dashboard', section: 'Organization' },
+  { key: 'invoice-templates', label: 'Invoice Templates', href: '/invoice-templates', icon: 'file-text', module: 'finance', section: 'Sales & CRM' },
+  { key: 'website-templates', label: 'Website & Templates', href: '/website', icon: 'globe', module: 'website', section: 'Platform' },
+];
+
+// A workspace is not merely recoloured for its industry. These are the daily
+// operating entry-points for that industry, while the universal business tools
+// remain available below. They intentionally point at working records modules
+// rather than empty showcase pages.
+const NICHE_WORKSPACE_NAV: Record<string, Array<{ key: string; label: string; href: string; icon: string; module: string; section: string }>> = {
+  school: [
+    { key: 'students', label: 'Students & Guardians', href: '/crm/contacts', icon: 'users-2', module: 'crm', section: 'School operations' },
+    { key: 'learning', label: 'Learning & Classes', href: '/app-builder', icon: 'layout', module: 'portals', section: 'School operations' },
+    { key: 'assessments', label: 'Exams & Results', href: '/documents', icon: 'file-text', module: 'documents', section: 'School operations' },
+    { key: 'school-fees', label: 'Fees & Invoices', href: '/finance', icon: 'credit-card', module: 'finance', section: 'School operations' },
+  ],
+  education: [
+    { key: 'students', label: 'Students & Guardians', href: '/crm/contacts', icon: 'users-2', module: 'crm', section: 'School operations' },
+    { key: 'learning', label: 'Learning & Classes', href: '/app-builder', icon: 'layout', module: 'portals', section: 'School operations' },
+    { key: 'assessments', label: 'Exams & Results', href: '/documents', icon: 'file-text', module: 'documents', section: 'School operations' },
+    { key: 'school-fees', label: 'Fees & Invoices', href: '/finance', icon: 'credit-card', module: 'finance', section: 'School operations' },
+  ],
+  hospital: [
+    { key: 'patients', label: 'Patients & Care Cards', href: '/crm/contacts', icon: 'users-2', module: 'crm', section: 'Clinical operations' },
+    { key: 'consultations', label: 'Consultations & Bookings', href: '/bookings', icon: 'calendar', module: 'booking', section: 'Clinical operations' },
+    { key: 'clinical-records', label: 'Clinical Records & Scans', href: '/documents', icon: 'file-text', module: 'documents', section: 'Clinical operations' },
+    { key: 'pharmacy', label: 'Pharmacy & Supplies', href: '/inventory', icon: 'package', module: 'inventory', section: 'Clinical operations' },
+  ],
+  healthcare: [
+    { key: 'patients', label: 'Patients & Care Cards', href: '/crm/contacts', icon: 'users-2', module: 'crm', section: 'Clinical operations' },
+    { key: 'consultations', label: 'Consultations & Bookings', href: '/bookings', icon: 'calendar', module: 'booking', section: 'Clinical operations' },
+    { key: 'clinical-records', label: 'Clinical Records & Scans', href: '/documents', icon: 'file-text', module: 'documents', section: 'Clinical operations' },
+    { key: 'pharmacy', label: 'Pharmacy & Supplies', href: '/inventory', icon: 'package', module: 'inventory', section: 'Clinical operations' },
+  ],
+};
+
 export function Sidebar() {
   const pathname = usePathname();
   const { user, tenant, logout } = useAuthStore();
@@ -126,8 +175,18 @@ export function Sidebar() {
   // make the dashboard unusable.
   const enabled = tenant?.enabledModules ?? [];
   const filterByModules = enabled.length > 0;
+  // Subscription management is a core account function, not an optional
+  // industry module. Older dashboard presets did not include it, which made
+  // the working Billing page unreachable for some businesses.
+  const industry = String((tenant as any)?.industry || '').toLowerCase();
+  const nicheNavigation = NICHE_WORKSPACE_NAV[industry] || [];
+  const remoteNavigation = [
+    ...nicheNavigation,
+    ...navigation,
+    ...UNIVERSAL_WORKSPACE_NAV.filter((core) => !navigation.some((item) => item.href === core.href)),
+  ];
   const sections = navigation.length > 0
-    ? groupRemoteNavigation(navigation)
+    ? groupRemoteNavigation(remoteNavigation)
     : NAV_SECTIONS
         .map((section) => ({
           label: section.label,
@@ -150,11 +209,9 @@ export function Sidebar() {
         collapsed && 'justify-center px-0'
       )}>
         {branding?.logoUrl ? (
-          <Image
+          <img
             src={branding.logoUrl}
             alt={businessName}
-            width={32}
-            height={32}
             className="h-8 w-8 shrink-0 rounded-lg object-contain"
           />
         ) : (

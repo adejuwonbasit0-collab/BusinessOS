@@ -29,12 +29,6 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
     if (pathname === '/login') return;
     if (!isInitialized) {
       initialize();
-      const timer = setTimeout(() => {
-        if (!useAdminAuthStore.getState().isInitialized) {
-          useAdminAuthStore.setState({ isInitialized: true });
-        }
-      }, 1500);
-      return () => clearTimeout(timer);
     }
   }, [isInitialized, initialize, pathname]);
 

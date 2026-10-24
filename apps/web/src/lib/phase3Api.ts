@@ -51,10 +51,15 @@ export const marketplaceApi = {
 export const integrationsApi = {
   catalog: () => api.get('/integrations/catalog'),
   list: () => api.get('/integrations'),
-  connect: (provider: string, config: any) => api.post('/integrations/connect', { provider, config }),
+  connect: (provider: string, config: any, is_active?: boolean) => api.post('/integrations/connect', { provider, config, is_active }),
   disconnect: (provider: string) => api.delete(`/integrations/${provider}`),
   test: (provider: string) => api.post(`/integrations/${provider}/test`),
   webhookUrl: (provider: string) => api.get(`/integrations/${provider}/webhook-url`),
+  listTemplates: () => api.get('/integrations/templates'),
+  saveTemplate: (data: any) => api.post('/integrations/templates', data),
+  deleteTemplate: (id: string) => api.delete(`/integrations/templates/${id}`),
+  previewTemplate: (id: string, variables?: any) => api.post(`/integrations/templates/${id}/preview`, { variables }),
+  testSendTemplate: (id: string, recipient: string, variables?: any) => api.post(`/integrations/templates/${id}/test-send`, { recipient, variables }),
 };
 
 // ── White Label ────────────────────────────────────────────────────────────

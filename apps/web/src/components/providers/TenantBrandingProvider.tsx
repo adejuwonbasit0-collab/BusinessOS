@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { brandingApi, NavigationItem, TenantBranding } from '@/lib/brandingApi';
+import { brandingApi, brandingAssetUrl, NavigationItem, TenantBranding } from '@/lib/brandingApi';
 import { useAuthStore } from '@/store/authStore';
 
 /**
@@ -98,15 +98,35 @@ export function TenantBrandingProvider({ children }: { children: React.ReactNode
   const tenant = useAuthStore((s) => s.tenant);
   const [pageTitle, setPageTitle] = useState<string>('');
 
+  const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
   const { data, isLoading } = useQuery({
-    queryKey: ['tenant-branding'],
-    queryFn: brandingApi.get,
-    enabled: isInitialized && isAuthenticated,
+    queryKey: ['tenant-branding', isAuthenticated ? 'session' : hostname],
+    queryFn: async () => {
+      if (isAuthenticated) return brandingApi.get();
+      const publicBranding = await brandingApi.getPublic(hostname);
+      // Public hosts expose identity only; dashboard navigation and plan data
+      // remain private to an authenticated workspace session.
+      return {
+        branding: publicBranding.branding,
+        navigation: [],
+        enabledModules: [],
+        plan: { name: '', slug: '', features: {}, maxUsers: 0, maxStorageGb: 0, maxWorkflows: 0, maxBranches: 0 },
+        entitlements: {},
+      };
+    },
+    enabled: isInitialized && (isAuthenticated || !!hostname),
     staleTime: 60_000,
     retry: false,
   });
 
-  const branding: TenantBranding | null = data?.branding ?? null;
+  const rawBranding: TenantBranding | null = data?.branding ?? null;
+  const branding: TenantBranding | null = rawBranding ? {
+    ...rawBranding,
+    logoUrl: brandingAssetUrl(rawBranding.logoUrl),
+    logoLightUrl: brandingAssetUrl(rawBranding.logoLightUrl),
+    logoDarkUrl: brandingAssetUrl(rawBranding.logoDarkUrl),
+    faviconUrl: brandingAssetUrl(rawBranding.faviconUrl),
+  } : null;
   const navigation: NavigationItem[] = useMemo(() => data?.navigation ?? [], [data]);
 
   // The business name comes from branding when it has loaded, and from the
@@ -131,6 +151,7 @@ export function TenantBrandingProvider({ children }: { children: React.ReactNode
       root.style.setProperty('--brand-font', branding.fontFamily);
       root.style.fontFamily = branding.fontFamily;
     }
+    if (branding.dashboardTheme) root.dataset.dashboardTheme = branding.dashboardTheme;
   }, [branding]);
 
   // Apply the tenant's favicon.

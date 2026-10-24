@@ -67,8 +67,17 @@ integrationsRouter.use(authenticate, rateLimiter);
 integrationsRouter.get('/catalog', intCtrl.getCatalog);
 integrationsRouter.get('/', intCtrl.listConnected);
 integrationsRouter.post('/connect', authorize('super_admin', 'owner', 'admin'), intCtrl.connect);
+
+// Notification templates
+integrationsRouter.get('/templates', intCtrl.listTemplates);
+integrationsRouter.post('/templates', authorize('super_admin', 'owner', 'admin'), intCtrl.saveTemplate);
+integrationsRouter.delete('/templates/:id', authorize('super_admin', 'owner', 'admin'), intCtrl.deleteTemplate);
+integrationsRouter.post('/templates/:id/preview', intCtrl.previewTemplate);
+integrationsRouter.post('/templates/:id/test-send', authorize('super_admin', 'owner', 'admin'), intCtrl.testSendTemplate);
+
+// Provider specific actions
 integrationsRouter.delete('/:provider', authorize('super_admin', 'owner', 'admin'), intCtrl.disconnect);
-integrationsRouter.post('/:provider/test', intCtrl.testConnection);
+integrationsRouter.post('/:provider/test', authorize('super_admin', 'owner', 'admin'), intCtrl.testConnection);
 integrationsRouter.get('/:provider/webhook-url', intCtrl.getWebhookUrl);
 
 // ── White Label ────────────────────────────────────────────────────────────

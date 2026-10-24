@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoicesApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Plus, FileText, Send, CheckCircle, Download } from 'lucide-react';
 import { toast } from '@/hooks/useToast';
 import { format } from 'date-fns';
@@ -20,6 +24,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function FinancePage() {
   const qc = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState({ customer: '', description: '', quantity: '1', unitPrice: '', dueDate: '' });
+  const [templateKey, setTemplateKey] = useState('classic');
+  useEffect(() => setTemplateKey(window.localStorage.getItem('nexos:invoice-template') || 'classic'), []);
   const { data, isLoading } = useQuery({ queryKey: ['invoices'], queryFn: () => invoicesApi.list({ limit: 25 }) });
   const { data: statsData } = useQuery({ queryKey: ['invoice-stats'], queryFn: () => invoicesApi.stats() });
 
@@ -31,6 +39,17 @@ export default function FinancePage() {
     mutationFn: (id: string) => invoicesApi.markPaid(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); toast({ title: 'Marked as paid' }); },
   });
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => invoicesApi.create(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['invoice-stats'] });
+      setCreateOpen(false);
+      setInvoiceForm({ customer: '', description: '', quantity: '1', unitPrice: '', dueDate: '' });
+      toast({ title: 'Invoice created as a draft.' });
+    },
+    onError: (error: any) => toast({ title: error.message || 'Could not create invoice', variant: 'destructive' }),
+  });
 
   const invoices = (data as any)?.data?.invoices || [];
   const stats = (statsData as any)?.data?.summary;
@@ -39,7 +58,7 @@ export default function FinancePage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div><h1 className="text-2xl font-bold tracking-tight">Finance</h1><p className="text-sm text-muted-foreground mt-1">Invoices and payments</p></div>
-        <Button size="sm"><Plus className="h-4 w-4 mr-2" />New Invoice</Button>
+        <div className="flex gap-2"><Button size="sm" variant="outline" asChild><Link href="/invoice-templates">Invoice templates</Link></Button><Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />New Invoice</Button></div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -87,6 +106,24 @@ export default function FinancePage() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Create invoice</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Customer name (shown on invoice)</Label><Input value={invoiceForm.customer} onChange={(event) => setInvoiceForm((current) => ({ ...current, customer: event.target.value }))} placeholder="Customer or company" /></div>
+            <div><Label>Line item / service</Label><Input value={invoiceForm.description} onChange={(event) => setInvoiceForm((current) => ({ ...current, description: event.target.value }))} placeholder="Website design service" /></div>
+            <div className="grid grid-cols-2 gap-3"><div><Label>Quantity</Label><Input type="number" min="1" value={invoiceForm.quantity} onChange={(event) => setInvoiceForm((current) => ({ ...current, quantity: event.target.value }))} /></div><div><Label>Unit price</Label><Input type="number" min="0" step="0.01" value={invoiceForm.unitPrice} onChange={(event) => setInvoiceForm((current) => ({ ...current, unitPrice: event.target.value }))} /></div></div>
+            <div><Label>Due date</Label><Input type="date" value={invoiceForm.dueDate} onChange={(event) => setInvoiceForm((current) => ({ ...current, dueDate: event.target.value }))} /></div>
+            <div><Label>Invoice template</Label><select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="classic">Classic</option><option value="modern-indigo">Modern Indigo</option><option value="ocean-clean">Ocean Clean</option><option value="forest-ledger">Forest Ledger</option><option value="sunset-studio">Sunset Studio</option><option value="plum-premium">Plum Premium</option><option value="rose-editorial">Rose Editorial</option><option value="slate-minimal">Slate Minimal</option></select><Link href="/invoice-templates" className="mt-1 inline-block text-xs text-indigo-600">Browse all 32 templates</Link></div>
+            <p className="text-xs text-muted-foreground">This creates a real draft invoice. You can send, mark paid, or download its PDF from the invoice list.</p>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button><Button disabled={createMutation.isPending} onClick={() => {
+              if (!invoiceForm.description || Number(invoiceForm.quantity) <= 0 || Number(invoiceForm.unitPrice) < 0) { toast({ title: 'Add a line item, quantity and price.', variant: 'destructive' }); return; }
+              createMutation.mutate({ dueDate: invoiceForm.dueDate || undefined, templateKey, notes: invoiceForm.customer ? `Bill to: ${invoiceForm.customer}` : undefined, items: [{ name: invoiceForm.description, quantity: Number(invoiceForm.quantity), unitPrice: Number(invoiceForm.unitPrice) }] });
+            }}>{createMutation.isPending ? 'Creating…' : 'Create draft'}</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

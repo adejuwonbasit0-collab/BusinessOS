@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, Check, CircleCheck, Loader2, Sparkles, Building2, Search, SlidersHorizontal } from 'lucide-react';
@@ -15,7 +15,7 @@ import { NICHES_DATA, NICHE_CATEGORIES, getNicheDefinition } from '@/lib/nichesD
 
 const trialBenefits = ['14-day free trial', 'No credit card required', 'Set up in minutes'];
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { register: registerUser } = useAuthStore();
@@ -25,6 +25,7 @@ export default function RegisterPage() {
     email: '',
     password: '',
     businessName: '',
+    username: '',
     phone: '',
     plan: 'starter',
     industry: searchParams.get('niche') || 'hotel',
@@ -42,6 +43,7 @@ export default function RegisterPage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [usernameState, setUsernameState] = useState<{ normalized: string; available: boolean; suggestions: string[] } | null>(null);
 
   const update = (field: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [field]: event.target.value }));
@@ -49,6 +51,18 @@ export default function RegisterPage() {
   useEffect(() => {
     billingApi.plans().then((res: any) => setPlans(res?.data || [])).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const candidate = form.username.trim().toLowerCase();
+    if (candidate.length < 3) { setUsernameState(null); return; }
+    const timer = window.setTimeout(() => {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/v1/auth/username-suggestions?username=${encodeURIComponent(candidate)}`)
+        .then((response) => response.json())
+        .then((response) => setUsernameState(response?.data || null))
+        .catch(() => setUsernameState(null));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [form.username]);
 
   const selectedNicheInfo = getNicheDefinition(form.industry, form.customIndustry);
 
@@ -62,18 +76,22 @@ export default function RegisterPage() {
     setError('');
     setIsSubmitting(true);
     try {
-      await registerUser({
+      const tenant = await registerUser({
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,
         password: form.password,
         businessName: form.businessName,
+        username: form.username,
         phone: form.phone,
         plan: form.plan,
         industry: form.industry,
         customIndustry: form.industry === 'other' ? form.customIndustry : undefined,
       });
-      router.push('/dashboard');
+      // A new owner leaves the platform registration page for their own
+      // workspace host. Their login, dashboard and logout all stay there.
+      const port = window.location.port ? `:${window.location.port}` : '';
+      window.location.assign(`${window.location.protocol}//${tenant.subdomain}.localhost${port}/dashboard`);
     } catch (err: any) {
       setError(err.message || 'We could not create your workspace. Please try again.');
     } finally {
@@ -172,6 +190,17 @@ export default function RegisterPage() {
               </div>
 
               <Field label="Business / Company name" id="businessName" value={form.businessName} onChange={update('businessName')} autoComplete="organization" placeholder="e.g. Grand Vista Hotel or St. Jude Clinic" />
+
+              <div className="space-y-1.5 rounded-xl border border-slate-200 p-3">
+                <Label htmlFor="username" className="text-xs font-semibold">Choose your workspace username</Label>
+                <div className="flex items-center rounded-md border bg-white focus-within:ring-2 focus-within:ring-indigo-500">
+                  <Input id="username" value={form.username} onChange={update('username')} required minLength={3} maxLength={32} pattern="[a-z0-9][a-z0-9-]*[a-z0-9]" placeholder="bazillin" className="h-10 border-0 shadow-none focus-visible:ring-0" />
+                  <span className="pr-3 whitespace-nowrap text-xs text-slate-500">.localhost:3002</span>
+                </div>
+                {usernameState && <p className={usernameState.available ? 'text-xs text-emerald-600' : 'text-xs text-amber-600'}>{usernameState.available ? 'This workspace address is available.' : 'That address is already taken.'}</p>}
+                {usernameState?.suggestions?.length ? <div className="flex flex-wrap gap-2 pt-1">{usernameState.suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => setForm((current) => ({ ...current, username: suggestion }))} className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700 hover:bg-indigo-100">{suggestion}.localhost</button>)}</div> : null}
+                <p className="text-[11px] text-slate-500">This is the owner’s separate platform: its public site, login, dashboard and logout all use this address.</p>
+              </div>
 
               {/* Niche / Occupation Picker */}
               <div className="space-y-2 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
@@ -289,6 +318,14 @@ export default function RegisterPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-slate-50" aria-busy="true" />}>
+      <RegisterForm />
+    </Suspense>
   );
 }
 

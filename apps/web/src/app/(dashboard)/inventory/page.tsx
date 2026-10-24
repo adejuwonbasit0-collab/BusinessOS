@@ -92,6 +92,7 @@ export default function InventoryPage() {
     reorderPoint: '10',
     reorderQuantity: '50',
     barcode: '',
+    imageUrl: '',
     supplierId: '',
     description: '',
   });
@@ -112,6 +113,8 @@ export default function InventoryPage() {
     deliveryDate: '',
     items: [{ productId: '', quantity: '10', unitCost: '' }],
   });
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
 
   const [restockForm, setRestockForm] = useState({
     warehouseId: '',
@@ -182,6 +185,17 @@ export default function InventoryPage() {
     onError: (e: any) => toast({ title: e.message || 'Error creating PO', variant: 'destructive' }),
   });
 
+  const receivePoMutation = useMutation({
+    mutationFn: (id: string) => inventoryApi.receivePurchaseOrder(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory-pos'] });
+      qc.invalidateQueries({ queryKey: ['inventory-stock'] });
+      qc.invalidateQueries({ queryKey: ['inventory-stats'] });
+      toast({ title: 'Purchase order received. Available stock has been updated.' });
+    },
+    onError: (e: any) => toast({ title: e.message || 'Could not receive this purchase order', variant: 'destructive' }),
+  });
+
   const restockMutation = useMutation({
     mutationFn: (data: any) => inventoryApi.adjustStock(data),
     onSuccess: () => {
@@ -210,6 +224,9 @@ export default function InventoryPage() {
       reorderPoint: parseInt(productForm.reorderPoint) || 0,
       reorderQuantity: parseInt(productForm.reorderQuantity) || 0,
       barcode: barcodeVal,
+      imageUrl: productForm.imageUrl || undefined,
+      description: productForm.description || undefined,
+      unit: productForm.unit || 'unit',
     });
   };
 
@@ -280,6 +297,7 @@ export default function InventoryPage() {
                 reorderPoint: '10',
                 reorderQuantity: '50',
                 barcode: `NEX-${Math.floor(1000000 + Math.random() * 9000000)}`,
+                imageUrl: '',
                 supplierId: '',
                 description: '',
               });
@@ -295,8 +313,8 @@ export default function InventoryPage() {
       {/* ── Stats Overview ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Products" value={stats?.totalProducts ?? products.length} icon={Package} />
-        <StatCard label="Total Stock Units" value={stats?.totalUnits ?? 1420} icon={Warehouse} />
-        <StatCard label="Inventory Valuation" value={`$${Number(stats?.totalValue || 48200).toLocaleString()}`} icon={ShoppingBag} />
+        <StatCard label="Total Stock Units" value={stats?.totalUnits ?? 0} icon={Warehouse} />
+        <StatCard label="Inventory Valuation" value={`$${Number(stats?.totalValue || 0).toLocaleString()}`} icon={ShoppingBag} />
         <StatCard label="Low Stock Alerts" value={stats?.lowStockCount ?? 0} icon={AlertTriangle} />
       </div>
 
@@ -338,13 +356,14 @@ export default function InventoryPage() {
                       <TableHead className="text-right">Cost</TableHead>
                       <TableHead className="text-right">Selling Price</TableHead>
                       <TableHead className="text-center">Stock</TableHead>
+                      <TableHead>Recorded</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredProducts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-xs">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-xs">
                           No products found. Click "Add Product" to create your first item.
                         </TableCell>
                       </TableRow>
@@ -352,7 +371,10 @@ export default function InventoryPage() {
                       filteredProducts.map((p: any) => (
                         <TableRow key={p.id} className="hover:bg-muted/30">
                           <TableCell className="font-semibold text-xs text-foreground">
-                            {p.name}
+                            <div className="flex items-center gap-2">
+                              {p.image_url ? <img src={p.image_url} alt="" className="h-8 w-8 rounded object-cover" /> : <div className="grid h-8 w-8 place-items-center rounded bg-muted text-[10px] text-muted-foreground">IMG</div>}
+                              <span>{p.name}</span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-xs font-mono text-muted-foreground">
                             <div>{p.sku || '—'}</div>
@@ -378,6 +400,7 @@ export default function InventoryPage() {
                               In Stock
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button
@@ -520,7 +543,8 @@ export default function InventoryPage() {
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => toast({ title: 'Marked Received & Stock Updated!' })}
+                            disabled={po.status === 'received' || receivePoMutation.isPending}
+                            onClick={() => receivePoMutation.mutate(po.id)}
                           >
                             Mark Received
                           </Button>
@@ -643,6 +667,11 @@ export default function InventoryPage() {
                   </Button>
                 </div>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Product image URL</Label><Input value={productForm.imageUrl} onChange={(e) => setProductForm((p) => ({ ...p, imageUrl: e.target.value }))} placeholder="https://…/product.jpg" className="h-9 text-xs" /><p className="text-[10px] text-muted-foreground">Use an uploaded image URL; it will appear in inventory and POS.</p></div>
+              <div className="space-y-1"><Label>Description</Label><Input value={productForm.description} onChange={(e) => setProductForm((p) => ({ ...p, description: e.target.value }))} placeholder="Optional product details" className="h-9 text-xs" /></div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -847,34 +876,17 @@ export default function InventoryPage() {
 
           <div className="space-y-3 py-2 text-xs">
             <div>
-              <Label>Select Supplier</Label>
-              <select
-                className="w-full h-9 px-2 border rounded-lg bg-background text-xs"
-                value={poForm.supplierId}
-                onChange={(e) => setPoForm((p) => ({ ...p, supplierId: e.target.value }))}
-              >
-                <option value="">Choose Supplier</option>
-                {suppliers.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+              <Label>Supplier</Label>
+              <Input value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} placeholder="Type at least 2 letters to find a supplier…" className="h-9 text-xs" />
+              {poForm.supplierId && <p className="mt-1 text-[11px] text-emerald-700">Selected: {suppliers.find((s: any) => s.id === poForm.supplierId)?.name}</p>}
+              {supplierSearch.trim().length >= 2 && <div className="mt-1 max-h-28 overflow-auto rounded-md border bg-background">{suppliers.filter((s: any) => s.name.toLowerCase().includes(supplierSearch.toLowerCase())).slice(0, 8).map((s: any) => <button type="button" key={s.id} onClick={() => { setPoForm((p) => ({ ...p, supplierId: s.id })); setSupplierSearch(s.name); }} className="block w-full px-3 py-2 text-left text-xs hover:bg-muted">{s.name}{s.email ? <span className="ml-2 text-muted-foreground">{s.email}</span> : null}</button>)}{suppliers.filter((s: any) => s.name.toLowerCase().includes(supplierSearch.toLowerCase())).length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">No matching supplier. Add one from the Suppliers tab.</p>}</div>}
             </div>
 
             <div>
-              <Label>Product to Restock</Label>
-              <select
-                className="w-full h-9 px-2 border rounded-lg bg-background text-xs"
-                value={poForm.items[0]?.productId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setPoForm((p) => ({ ...p, items: [{ ...p.items[0], productId: val }] }));
-                }}
-              >
-                <option value="">Select Product</option>
-                {products.map((prod: any) => (
-                  <option key={prod.id} value={prod.id}>{prod.name} (${Number(prod.cost || 0).toFixed(2)})</option>
-                ))}
-              </select>
+              <Label>Product to restock</Label>
+              <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Type at least 2 letters, SKU or barcode…" className="h-9 text-xs" />
+              {poForm.items[0]?.productId && <p className="mt-1 text-[11px] text-emerald-700">Selected: {products.find((p: any) => p.id === poForm.items[0]?.productId)?.name}</p>}
+              {productSearch.trim().length >= 2 && <div className="mt-1 max-h-28 overflow-auto rounded-md border bg-background">{products.filter((p: any) => `${p.name} ${p.sku || ''} ${p.barcode || ''}`.toLowerCase().includes(productSearch.toLowerCase())).slice(0, 8).map((prod: any) => <button type="button" key={prod.id} onClick={() => { setPoForm((p) => ({ ...p, items: [{ ...p.items[0], productId: prod.id, unitCost: String(prod.cost || '') }] })); setProductSearch(prod.name); }} className="flex w-full justify-between px-3 py-2 text-left text-xs hover:bg-muted"><span>{prod.name}</span><span className="text-muted-foreground">{prod.sku || 'No SKU'}</span></button>)}{products.filter((p: any) => `${p.name} ${p.sku || ''} ${p.barcode || ''}`.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">No matching product. Create it in the Products tab first.</p>}</div>}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -907,11 +919,23 @@ export default function InventoryPage() {
                 size="sm"
                 className="bg-indigo-600 text-white"
                 onClick={() => {
-                  toast({ title: 'Purchase Order created & sent to supplier!' });
-                  setPoOpen(false);
+                  const item = poForm.items[0];
+                  const product = products.find((entry: any) => entry.id === item?.productId);
+                  const warehouseId = poForm.warehouseId || warehouses.find((entry: any) => entry.is_default)?.id || warehouses[0]?.id;
+                  if (!poForm.supplierId || !warehouseId || !item?.productId || Number(item.quantity) <= 0) {
+                    toast({ title: 'Choose a supplier, warehouse, product and quantity first.', variant: 'destructive' });
+                    return;
+                  }
+                  createPoMutation.mutate({
+                    supplierId: poForm.supplierId,
+                    warehouseId,
+                    expectedDate: poForm.deliveryDate || undefined,
+                    items: [{ productId: item.productId, quantity: Number(item.quantity), unitCost: Number(item.unitCost || product?.cost || 0) }],
+                  });
                 }}
+                disabled={createPoMutation.isPending}
               >
-                Dispatch Purchase Order
+                {createPoMutation.isPending ? 'Creating…' : 'Create Purchase Order'}
               </Button>
             </div>
           </div>

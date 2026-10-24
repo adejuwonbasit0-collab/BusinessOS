@@ -46,6 +46,7 @@ export interface TenantBranding {
   registrationNumber: string | null;
   websiteTitle: string;
   hidePoweredBy: boolean;
+  dashboardTheme?: string;
 }
 
 /**
@@ -192,6 +193,20 @@ export async function resolveTenantByHostname(hostname: string | undefined | nul
     }
   }
 
+  // Local development uses `<subdomain>.localhost`; use the same tenant
+  // lookup as production subdomains so branding can be verified locally.
+  if (host.endsWith('.localhost')) {
+    const subdomain = host.slice(0, -'.localhost'.length);
+    if (subdomain) {
+      const tenant = await baseQuery().where({ 'tenants.subdomain': subdomain }).first();
+      if (tenant) {
+        await cachedSet(cacheKey, tenant);
+        await cachedSet(`tenant:ctx:sub:${subdomain}`, tenant);
+        return tenant;
+      }
+    }
+  }
+
   // 2. Verified independent domain.
   const verified = await baseQuery()
     .join('tenant_domains', 'tenant_domains.tenant_id', 'tenants.id')
@@ -256,6 +271,7 @@ export async function getTenantBranding(tenantId: string): Promise<TenantBrandin
     registrationNumber: tenant.registration_number || null,
     websiteTitle: businessName,
     hidePoweredBy: whiteLabel?.hide_powered_by === true,
+    dashboardTheme: tenant.settings?.dashboardTheme || 'indigo',
   };
 }
 

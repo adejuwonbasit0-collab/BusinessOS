@@ -97,6 +97,7 @@ export class BrandingController {
       address, country, currency, timezone, locale, registrationNumber, businessHours,
       primaryColor, secondaryColor, logoUrl, logoLightUrl, logoDarkUrl, faviconUrl,
       brandFont, dateFormat, numberFormat, socialLinks,
+      dashboardTheme,
     } = req.body || {};
 
     const update: Record<string, any> = { updated_at: new Date() };
@@ -131,6 +132,10 @@ export class BrandingController {
     if (dateFormat !== undefined) update.date_format = dateFormat || null;
     if (numberFormat !== undefined) update.number_format = numberFormat || null;
     if (socialLinks !== undefined) update.social_links = JSON.stringify(socialLinks || {});
+    if (dashboardTheme !== undefined) {
+      const current = typeof req.tenant!.settings === 'string' ? JSON.parse(req.tenant!.settings || '{}') : (req.tenant!.settings || {});
+      update.settings = JSON.stringify({ ...current, dashboardTheme: String(dashboardTheme || 'indigo') });
+    }
 
     for (const [field, value] of [['primaryColor', primaryColor], ['secondaryColor', secondaryColor]] as const) {
       if (value === undefined) continue;
@@ -232,7 +237,8 @@ export class BrandingController {
       ip: req.ip,
     });
 
-    res.status(201).json({ success: true, data: { kind, ...variants } });
+    const branding = await getTenantBranding(tenant.id);
+    res.status(201).json({ success: true, data: { branding, kind, ...variants } });
   };
 
   // ── GET /branding/public?host=… ───────────────────────────────────────────
@@ -253,6 +259,45 @@ export class BrandingController {
         branding,
         hostname: host,
         published: tenant.status === 'active' || tenant.status === 'trial',
+      },
+    });
+  };
+
+  /**
+   * Public, hostname-scoped website payload.  It only exposes pages that the
+   * owner has actually published; drafts and another business's pages can
+   * never leak through the shared API origin.
+   */
+  getPublicSite = async (req: Request, res: Response) => {
+    const host = (req.query.host as string) || req.hostname;
+    const tenant = await resolveTenantByHostname(host);
+    if (!tenant) {
+      res.status(404).json({ success: false, error: { code: 'TENANT_NOT_FOUND', message: 'No business is registered for this address' } });
+      return;
+    }
+
+    const website = await db('websites')
+      .where({ tenant_id: tenant.id, is_published: true })
+      .orderBy('updated_at', 'desc')
+      .first();
+    const pages = website
+      ? await db('pages')
+        .where({ tenant_id: tenant.id, website_id: website.id, status: 'published' })
+        .orderBy([{ column: 'is_homepage', order: 'desc' }, { column: 'created_at', order: 'asc' }])
+      : [];
+    const requestedSlug = String(req.query.page || '').trim();
+    const page = requestedSlug
+      ? pages.find((item: any) => item.slug === requestedSlug)
+      : pages.find((item: any) => item.is_homepage) || pages[0];
+    const branding = await getTenantBranding(tenant.id);
+
+    res.json({
+      success: true,
+      data: {
+        branding,
+        website: website ? { id: website.id, name: website.name, theme: website.theme, seo: website.seo } : null,
+        page: page || null,
+        pages: pages.map((item: any) => ({ title: item.title, slug: item.slug, isHomepage: item.is_homepage })),
       },
     });
   };

@@ -10,6 +10,7 @@ const ctrl = new BrandingController();
 // only route on this router that does not require a session, and it exposes
 // branding only — never records.
 router.get('/public', ctrl.getPublicBranding);
+router.get('/public-site', ctrl.getPublicSite);
 
 router.use(authenticate, rateLimiter);
 

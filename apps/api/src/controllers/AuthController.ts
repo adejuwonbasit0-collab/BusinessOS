@@ -9,9 +9,30 @@ import { AppError } from '../lib/errors';
 import { EmailService } from '../services/EmailService';
 import { TenantService } from '../services/index';
 import { AuditService } from '../services/index';
+import { resolveTenantByHostname } from '../services/TenantContextService';
 
 const ACCESS_TOKEN_EXPIRES = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
 const REFRESH_TOKEN_EXPIRES_DAYS = 30;
+
+/**
+ * Converts a free-form string into a URL-safe slug.
+ *
+ * Used for the workspace subdomain derived from the user's preferred
+ * username (or, as a fallback, the business name). The result is always
+ * lowercase, contains only letters, digits and single hyphens, and never
+ * starts or ends with a hyphen — matching the validation on the register
+ * form so a value the user typed is the value that becomes the hostname.
+ */
+function slugify(value: string): string {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+}
 
 /**
  * Whether a sign-in is blocked until the address is verified.
@@ -82,9 +103,33 @@ async function createSession(userId: string, req: Request) {
 }
 
 export class AuthController {
+  // Public availability helper used by the workspace-name picker during
+  // registration. It deliberately only reveals whether a hostname is usable,
+  // never tenant/account information.
+  usernameSuggestions = async (req: Request, res: Response) => {
+    const requested = slugify(String(req.query.username || ''));
+    if (requested.length < 3) {
+      return res.json({ success: true, data: { normalized: requested, available: false, suggestions: [] } });
+    }
+
+    const candidates = Array.from(new Set([
+      requested,
+      `${requested}-hq`,
+      `${requested}-app`,
+      `${requested}-${new Date().getFullYear()}`,
+      `${requested}1`,
+    ]));
+    const existing = await db('tenants').whereIn('subdomain', candidates).pluck('subdomain');
+    const available = candidates.filter((candidate) => !existing.includes(candidate));
+    return res.json({
+      success: true,
+      data: { normalized: requested, available: !existing.includes(requested), suggestions: available.slice(0, 4) },
+    });
+  };
+
   // ── POST /auth/register ─────────────────────────────────────────────────────
   register = async (req: Request, res: Response) => {
-    const { firstName, lastName, email, password, businessName, plan = 'starter', industry, customIndustry, phone } = req.body;
+    const { firstName, lastName, email, password, businessName, plan = 'starter', industry, customIndustry, phone, username } = req.body;
 
     const existingUser = await db('users').where({ email: email.toLowerCase() }).first();
     if (existingUser) throw new AppError('An account with this email already exists', 409, 'EMAIL_EXISTS');
@@ -92,7 +137,18 @@ export class AuthController {
     const planRecord = await db('plans').where({ slug: plan }).first();
     if (!planRecord) throw new AppError('Invalid plan selected', 400, 'INVALID_PLAN');
 
-    const slug = await TenantService.generateUniqueSlug(businessName);
+    // The preferred username becomes the workspace subdomain. When the
+    // caller supplied one it is used verbatim (after slugification); otherwise
+    // we fall back to deriving one from the business name so the workspace
+    // always has a usable hostname.
+    const rawSlug = username ? slugify(username) : slugify(businessName);
+    if (username && rawSlug.length < 3) throw new AppError('Choose a workspace username with at least 3 letters or numbers.', 400, 'INVALID_USERNAME');
+    // Never silently change a username the owner deliberately chose. The UI
+    // supplies availability suggestions; the owner chooses the final address.
+    if (username && await db('tenants').where({ subdomain: rawSlug }).first()) {
+      throw new AppError('That workspace username is already taken. Choose one of the suggestions.', 409, 'USERNAME_TAKEN');
+    }
+    const slug = username ? rawSlug : await TenantService.generateUniqueSlug(rawSlug || businessName);
     const passwordHash = await bcrypt.hash(password, 12);
 
     const coreModules = await db('module_registry').where({ is_core: true, is_active: true }).pluck('key');
@@ -145,6 +201,14 @@ export class AuthController {
         verified_at: new Date(),
       } as any);
 
+      // Every inventory-enabled workspace needs somewhere to receive stock.
+      // Creating this operational default at provisioning time makes the
+      // intended flow work immediately: product → purchase → receive → POS.
+      await trx('warehouses').insert({
+        tenant_id: tenant.id, name: 'Main Warehouse', code: 'MAIN',
+        is_default: true, is_active: true,
+      });
+
       return { tenant, user };
     });
 
@@ -168,7 +232,7 @@ export class AuthController {
 
   // ── POST /auth/login ──────────────────────────────────────────────────────
   login = async (req: Request, res: Response) => {
-    const { email, password, rememberMe } = req.body;
+    const { email, password, rememberMe, workspaceHost } = req.body;
 
     const user = await db('users')
       .join('tenants', 'users.tenant_id', 'tenants.id')
@@ -201,6 +265,15 @@ export class AuthController {
     if (!isValid) {
       AuditService.log({ action: 'user.login.failed', ip: req.ip, status: 'failure', description: `Failed login for ${email}` });
       throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+    }
+
+    // A branded business login is tenant-bound. The host only narrows a
+    // successful credential match; it can never select or elevate a tenant.
+    if (workspaceHost) {
+      const workspace = await resolveTenantByHostname(String(workspaceHost));
+      if (workspace && workspace.id !== user.tenant_id) {
+        throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+      }
     }
 
     // `users.status` and `tenants.status` are two different things: the

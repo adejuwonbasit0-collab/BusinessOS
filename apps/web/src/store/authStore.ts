@@ -37,7 +37,7 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<{ requiresTwoFactor?: boolean; tempToken?: string }>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<Tenant>;
   logout: () => Promise<void>;
   verify2FA: (tempToken: string, code: string) => Promise<void>;
   impersonate: (token: string) => Promise<void>;
@@ -52,6 +52,7 @@ interface RegisterData {
   email: string;
   password: string;
   businessName: string;
+  username: string;
   plan?: string;
   industry?: string;
   customIndustry?: string;
@@ -118,7 +119,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password, rememberMe = false) => {
         set({ isLoading: true });
         try {
-          const { data } = await api.post('/auth/login', { email, password, rememberMe });
+          const workspaceHost = typeof window === 'undefined' ? undefined : window.location.hostname;
+          const { data } = await api.post('/auth/login', { email, password, rememberMe, workspaceHost });
           if (data.requiresTwoFactor) { set({ isLoading: false }); return { requiresTwoFactor: true, tempToken: data.tempToken }; }
           set({ user: data.user, tenant: data.tenant, accessToken: data.tokens.accessToken, isAuthenticated: true, isLoading: false });
           return {};
@@ -131,9 +133,10 @@ export const useAuthStore = create<AuthState>()(
           const { data } = await api.post('/auth/register', {
             firstName: formData.firstName, lastName: formData.lastName, email: formData.email,
             password: formData.password, businessName: formData.businessName, plan: formData.plan || 'starter',
-            industry: formData.industry, customIndustry: formData.customIndustry, phone: formData.phone,
+            username: formData.username, industry: formData.industry, customIndustry: formData.customIndustry, phone: formData.phone,
           });
           set({ user: data.user, tenant: data.tenant, accessToken: data.tokens.accessToken, isAuthenticated: true, isLoading: false });
+          return data.tenant as Tenant;
         } catch (err) { set({ isLoading: false }); throw err; }
       },
 

@@ -59,9 +59,9 @@ function loadEnv(): void {
     dotenv.config({ path: file });
   }
 
-  for (const [key, value] of shadowed) {
+  for (const [key] of shadowed) {
     logger.warn(
-      `WARNING: ${key} is set in your shell ("${value}") and overrides the value from .env - ` +
+      `WARNING: ${key} is set in your shell and overrides the value from .env - ` +
         `remove it from the shell (or your PowerShell profile) to use the project configuration.`
     );
   }
